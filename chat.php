@@ -1,10 +1,11 @@
-﻿<?php
+<?php
 session_start();
 $_SESSION["questions"] = isset($_SESSION['questions']) && is_array($_SESSION['questions']) ? $_SESSION['questions'] : array();
 $userInput = isset($_POST['text']) ? $_POST['text'] : "";
-$questions = array();
+
 $file = fopen("db.txt",'r');
-if($file){
+$questions = loadDb();
+/*if($file){
 	while(($line = fgets($file))){
 		$raw = explode(";",$line);
 		$qs = explode(",",$raw[0]);
@@ -13,7 +14,7 @@ if($file){
 		
 		array_push($questions, array('q'=>$qs,'a'=>$as));
 	}
-}
+}*/
 fclose($file);
 
 $res = false;
@@ -21,51 +22,46 @@ $spoken = false;
 if(is_array($_SESSION['questions']) && count($_SESSION['questions']) >= 1){
 	if($userInput == ""){
 	echo "I asked you a question..";
-	echo $_SESSION['questions'][0];
+	echo $_SESSION['questions'][0]['q'];
 	} else {
-		$file = fopen("db.txt","r");
-		$i = 0;
-		$lineToEdit = false;
-		while(($line = fgets($file))){
-			$raw = explode(";",$line);
-			$qs = explode(",",$raw[0]);
-			foreach($qs as $ques){
-				if(strtolower($ques) == strtolower($_SESSION['questions'][0])){
-					$lineToEdit = $i;
-					break;
-				}
-			}
-			if($lineToEdit != false){
+		//Check if the answer exists already, if it does, add a value to it, otherwise, add it.
+		$foundAnswer = false;
+		foreach($questions[$_SESSION['questions'][0]['id']]['a'] as &$answer){
+			if(strtolower($answer['a']) == strtolower($userInput)){
+				$answer['c']++;
+				$foundAnswer = true;
 				break;
 			}
-			$i++;
 		}
-		$lines = file( "db.txt" , FILE_IGNORE_NEW_LINES );
-		$f = explode(";",$lines[$lineToEdit]);
-		$lines[$lineToEdit] = $f[0].";".$userInput.",".preg_replace("/\n+/","",$f[1]);
-		file_put_contents( "db.txt" , implode( "\n", $lines ) );
+		if(!$foundAnswer)
+			array_push($questions[$_SESSION['questions'][0]['id']]['a'],array('a'=>$userInput,'c'=>1));
+		
+		exportDb($questions);
 		unset($_SESSION['questions'][0]);
+		
 		foreach($questions as $q => $val){
-			
-			foreach($val['q'] as $a){
-				if(strtolower($a) == strtolower($userInput)){
+
+			if(strtolower($val['q']) == strtolower($userInput)){
+				if(count($val['a'])){
 					$res = true;
-					if(count($val['a'])){
-						$tospeak = $val['a'][0];
-						if(strlen(trim($tospeak)) >= 1){
-							echo $tospeak;
-							$spoken = true;
-						}
+					$high = false;
+					//High will be set to the answer, together with it's count.
+					foreach($val['a'] as $answer){
+						if(!is_array($high) || $answer['c'] > $high['c'])
+							$high = $answer;
 					}
-						
+					echo $high['a'];
+					$spoken = true;
 					break;
 				}
-				if($res){
-					break;
-				}
+
+			}
+			if($spoken){
+				break;
 			}
 
 		}
+		
 		if(!$spoken){
 			echo "Oh okay..";
 		}
@@ -73,43 +69,128 @@ if(is_array($_SESSION['questions']) && count($_SESSION['questions']) >= 1){
 	}
 
 } else if($userInput != "") {
-
+	$found = false;
+	
 	foreach($questions as $q => $val){
-		
-		foreach($val['q'] as $a){
-			if(strtolower($a) == strtolower($userInput)){
-				$res = true;
+
+			if(strtolower($val['q']) == strtolower($userInput)){
+				$found = true;
 				if(count($val['a'])){
-					$tospeak = $val['a'][0];
-					if(strlen(trim($tospeak)) >= 1){
-						echo $tospeak;
-						$spoken = true;
+					$res = true;
+					$high = false;
+					//High will be set to the answer, together with it's count.
+					foreach($val['a'] as $answer){
+						if(!is_array($high) || $answer['c'] > $high['c'])
+							$high = $answer;
 					}
+					echo $high['a'];
+					$spoken = true;
+					break;
 				}
-					
-				break;
+
 			}
 			if($res){
 				break;
 			}
-		}
 
 	}
+
+	
 	if(!$spoken){
-		echo "I don't know what to say.. but....<br>";
-		foreach($questions as $q => $val){
-			if(count($val['a']) == 1 && $val['a'][0] == ""){
-				echo $val['q'][0];
-				$_SESSION['questions'][0] = $val['q'][0];
-				break;
+		
+		if(rand(0,1)){
+			echo "I don't know what to say.. but..";
+			foreach($questions as $q => $val){
+				if(!count($val['a'])){
+					echo $val['q'];
+					$val['id'] = $q;
+					$_SESSION['questions'][0] = $val;
+					$spoken = true;
+					break;
+				}
 			}
+		} else {
+			echo "I don't know what to say.. but..";
+			$spoken = true;
+			$id = rand(0,count($questions)-1);
+			$val = $questions[$id];
+			echo $val['q'];
+			$val['id'] = $id;
+			$_SESSION['questions'][0] = $val;
+			//rand(count($questions));
 		}
+
+		if(!$spoken){
+			echo "nevermind";
+		}
+	} else {
+			//Sometimes, ask a random question: even if it spoke
+			echo "<br>";
+			$spoken = true;
+			$id = rand(0,count($questions)-1);
+			$val = $questions[$id];
+			echo $val['q'];
+			$val['id'] = $id;
+			$_SESSION['questions'][0] = $val;
+			//rand(count($questions));
 	}
 
-	if(!$res){
-		$file = fopen("db.txt","a");
-		fwrite($file,"\n{$userInput};");
-		fclose($file);
+	if(!$found){
+		$questions[] = array('q'=>$userInput,'a'=>array());
+		exportDb($questions);
 	}
 }
+function loadDb(){
+	$toReturn = false;
+	$file = fopen("db.txt","r");
+	if($file){
+		$toReturn = array();
+		while($line = fgets($file)){
+		
+			$results = array();
+			
+			if(!preg_match("/(.+);(.+)/",$line,$results)){
+				$questions = explode(";",$line);
+				$questions = $questions[0];
+				$answers = array();
+				$as = array();
+			} else {
+				$questions = $results[1];
+				$answers = $results[2];
+				$as = explode("~",$answers);
+				foreach($as as &$answer){
+					//$answer = "raz";
+					$realmatches;
+					$matches = preg_match("/(.+)\(([0-9]+)\)/",$answer,$realmatches);
+					$answer = array('a'=>$realmatches[1],'c'=>$realmatches[2]);
+				}
+			}
+
+			array_push($toReturn, array('q'=>$questions,'a'=>$as));
+
+			
+		}
+		fclose($file);
+	}
+	return $toReturn;
+
+}
+function exportDb($array){
+	$file = fopen("db.txt","a");
+	file_put_contents("db.txt","");
+	foreach($array as $line){
+		$answers = "";
+		if(count($line['a'])){
+			$lastval = end(array_values($line['a']));
+			foreach($line['a'] as $answer){
+				$answers .= $answer['a']."({$answer['c']})".($answer === $lastval ? "" : "~");
+			}
+		}
+
+		fwrite($file,"{$line['q']};".$answers."\n");
+	}
+	
+	fclose($file);
+}
+
 ?>
