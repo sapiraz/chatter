@@ -96,7 +96,7 @@ if(is_array($_SESSION['questions']) && count($_SESSION['questions']) >= 1){
 
 	}
 	if(!$spoken){
-		echo "I don't know what to say.. but..";
+		echo "I don't know what to say.. but....<br>";
 		foreach($questions as $q => $val){
 			if(count($val['a']) == 1 && $val['a'][0] == ""){
 				echo $val['q'][0];
