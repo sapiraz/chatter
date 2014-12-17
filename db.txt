@@ -1,0 +1,14 @@
+hi;hi(2)~hi(1);
+How are you?;hi(1)~I'm alright, you?(1)~I'm doing good(1);
+What is up;Nothing much(2)~Nothing much(1);
+Who's Steve Jobs?;It's the guy who invented the iPhone(1);
+Okay;Okay..?(1);
+Lol;;
+Wow you're the dumbest bot I've seen;I'm not a bot(1);
+Eh;;
+So;;
+im good;Good for you(1);
+What do you want?;Nothing dude(1);
+Really?;;
+how are you?;;
+whhhhhh;;
